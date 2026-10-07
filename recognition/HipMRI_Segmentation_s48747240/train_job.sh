@@ -15,5 +15,5 @@ source $HOME/miniconda3/bin/activate
 conda activate tf
 
 # Run training
-cd $HOME/PatternAnalysis-2026/recognition/HipMRI_Segmentation_s4874724
+cd $HOME/PatternAnalysis-2026/recognition/HipMRI_Segmentation_s48747240
 python train.py
