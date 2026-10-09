@@ -47,20 +47,60 @@ def to_channels(arr: np.ndarray, dtype=np.uint8) -> np.ndarray:
         res[..., c:c + 1][arr == c] = 1
     return res
 
+# Real HipMRI slices are not all the same size (e.g. some are 256x128,
+# others 256x144) - likely different fields of view across scans/patients.
+# All slices are center-cropped/zero-padded to this fixed shape so they can
+# be stacked into a single array. Confirmed via a training-run crash showing
+# shapes (256,144) and (256,128) both occurring in the real dataset.
+TARGET_SHAPE = (256, 128)
+
+def resize_to_target(arr: np.ndarray, target_shape=TARGET_SHAPE) -> np.ndarray:
+    """
+    Center-crop (if larger) or zero-pad (if smaller) a 2D array to
+    target_shape, independently on each axis.
+    """
+    out = arr
+    for axis, target in enumerate(target_shape):
+        current = out.shape[axis]
+        if current == target:
+            continue
+        elif current > target:
+            # center-crop this axis
+            start = (current - target) // 2
+            sl = [slice(None)] * out.ndim
+            sl[axis] = slice(start, start + target)
+            out = out[tuple(sl)]
+        else:
+            # zero-pad this axis
+            pad_total = target - current
+            pad_before = pad_total // 2
+            pad_after = pad_total - pad_before
+            pad_width = [(0, 0)] * out.ndim
+            pad_width[axis] = (pad_before, pad_after)
+            out = np.pad(out, pad_width, mode="constant", constant_values=0)
+    return out
+
 
 def load_data_2D(image_names, norm_image=False, categorical=False,
-                  dtype=np.float32, early_stop=False):
-    """Load a list of 2D Nifti files into a single pre-allocated array."""
+                  dtype=np.float32, early_stop=False, target_shape=TARGET_SHAPE):
+    """
+    Load a list of 2D Nifti files into a single pre-allocated array.
+    Every slice is center-cropped/zero-padded to target_shape first, since
+    real HipMRI slices vary in size across patients/scans.
+    """
     num = len(image_names)
-    first_case = nib.load(image_names[0]).get_fdata(caching="unchanged")
-    if len(first_case.shape) == 3:
-        first_case = first_case[:, :, 0]
+    rows, cols = target_shape
+
     if categorical:
+        # Determine channel count from the first slice after resizing.
+        first_case = nib.load(image_names[0]).get_fdata(caching="unchanged")
+        if len(first_case.shape) == 3:
+            first_case = first_case[:, :, 0]
+        first_case = resize_to_target(first_case, target_shape)
         first_case = to_channels(first_case, dtype=dtype)
-        rows, cols, channels = first_case.shape
+        channels = first_case.shape[-1]
         images = np.zeros((num, rows, cols, channels), dtype=dtype)
     else:
-        rows, cols = first_case.shape
         images = np.zeros((num, rows, cols), dtype=dtype)
 
     for i, name in enumerate(tqdm(image_names)):
@@ -68,11 +108,19 @@ def load_data_2D(image_names, norm_image=False, categorical=False,
         in_image = nifti_image.get_fdata(caching="unchanged")
         if len(in_image.shape) == 3:
             in_image = in_image[:, :, 0]
+        in_image = resize_to_target(in_image, target_shape)
         in_image = in_image.astype(dtype)
         if norm_image:
             in_image = (in_image - in_image.mean()) / (in_image.std() + 1e-8)
         if categorical:
             in_image = to_channels(in_image, dtype=dtype)
+            # Guard against a slice introducing a label value not seen in
+            # the first slice (would otherwise produce a channel mismatch).
+            if in_image.shape[-1] != images.shape[-1]:
+                fixed = np.zeros((rows, cols, images.shape[-1]), dtype=dtype)
+                n = min(in_image.shape[-1], images.shape[-1])
+                fixed[..., :n] = in_image[..., :n]
+                in_image = fixed
             images[i, :, :, :] = in_image
         else:
             images[i, :, :] = in_image
