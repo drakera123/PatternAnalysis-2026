@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=hipmri-unet-train
 #SBATCH --partition=comp3710
+#SBATCH --account=comp3710
 #SBATCH --gres=gpu:1
-#SBATCH --mem=16G
 #SBATCH --time=00:30:00
 #SBATCH --output=train_%j.out
 #SBATCH --error=train_%j.err
