@@ -22,7 +22,7 @@ from dataset import load_hipmri_2d
 
 # ---- Config ----
 NUM_CLASSES = 6          # TODO: confirm against real label values in the data
-INPUT_SHAPE = (256, 256, 1)  # TODO: confirm actual slice dimensions
+INPUT_SHAPE = (256, 128, 1)  # TODO: confirm actual slice dimensions
 BATCH_SIZE = 16
 EPOCHS = 50
 LEARNING_RATE = 1e-4
