@@ -12,6 +12,7 @@ Run on Rangpur inside an interactive GPU session or via a Slurm batch script
 """
 
 import os
+import time
 import matplotlib
 matplotlib.use("Agg")  # no display on a cluster node
 import matplotlib.pyplot as plt
@@ -21,8 +22,8 @@ from modules import build_unet_2d, dice_coefficient, combined_loss
 from dataset import load_hipmri_2d
 
 # ---- Config ----
-NUM_CLASSES = 6          # TODO: confirm against real label values in the data
-INPUT_SHAPE = (256, 128, 1)  # TODO: confirm actual slice dimensions
+NUM_CLASSES = 6          
+INPUT_SHAPE = (256, 128, 1)  
 BATCH_SIZE = 16
 EPOCHS = 50
 LEARNING_RATE = 1e-4
@@ -79,6 +80,18 @@ def main():
 
     model.save(os.path.join(CHECKPOINT_DIR, "unet2d_final.keras"))
     print(f"Saved final model to {CHECKPOINT_DIR}/unet2d_final.keras")
+    # ---- Resource profiling for the README table ----
+    print("Parameters:", model.count_params())
+    mem = tf.config.experimental.get_memory_info("GPU:0")
+    print(f"Peak GPU memory: {mem['peak'] / 1e9:.2f} GB")
+
+    # Inference latency per slice (one warm-up call first)
+    x = next(iter(test_ds))[0][:1]
+    model(x, training=False)
+    t0 = time.time()
+    for _ in range(50):
+        model(x, training=False)
+    print(f"Inference: {(time.time() - t0) / 50 * 1000:.1f} ms per slice")
 
 
 def plot_history(history):
