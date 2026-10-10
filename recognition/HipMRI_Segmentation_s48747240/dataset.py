@@ -152,13 +152,9 @@ def check_no_leakage(train_files, val_files, test_files):
         raise ValueError(f"Data leakage detected - case ids in multiple splits: {overlap}")
 
 
-def _image_to_seg_path(image_path: str) -> str:
-    """Map a case_*.nii.gz image path to its matching seg_*.nii.gz label path."""
-    image_dir = os.path.dirname(image_path)
-    seg_dir = image_dir.replace("keras_slices_", "keras_slices_seg_", 1) \
-        if "keras_slices_seg_" not in image_dir else image_dir
+def _image_to_seg_path(image_path: str, seg_folder: str) -> str:
     filename = os.path.basename(image_path).replace("case_", "seg_", 1)
-    return os.path.join(seg_dir, filename)
+    return os.path.join(BASE_DIR, seg_folder, filename)
 
 
 def build_tf_dataset(images, masks, batch_size=16, shuffle=True, augment=False):
@@ -184,7 +180,7 @@ def _load_split(split: str, early_stop: bool = False):
     """Load one of 'train' / 'validate' / 'test' into (images, masks) numpy arrays."""
     image_folder, _ = SPLIT_FOLDERS[split]
     image_paths = sorted(glob.glob(os.path.join(BASE_DIR, image_folder, "*.nii.gz")))
-    mask_paths = [_image_to_seg_path(p) for p in image_paths]
+    mask_paths = [_image_to_seg_path(p, seg_folder) for p in image_paths]
 
     x = load_data_2D(image_paths, norm_image=True, early_stop=early_stop)
     y = load_data_2D(mask_paths, categorical=True, dtype=np.uint8, early_stop=early_stop)
