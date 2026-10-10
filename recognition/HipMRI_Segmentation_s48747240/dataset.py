@@ -178,7 +178,7 @@ def _augment(image, mask):
 
 def _load_split(split: str, early_stop: bool = False):
     """Load one of 'train' / 'validate' / 'test' into (images, masks) numpy arrays."""
-    image_folder, _ = SPLIT_FOLDERS[split]
+    image_folder, seg_folder = SPLIT_FOLDERS[split]
     image_paths = sorted(glob.glob(os.path.join(BASE_DIR, image_folder, "*.nii.gz")))
     mask_paths = [_image_to_seg_path(p, seg_folder) for p in image_paths]
 
