@@ -3,6 +3,7 @@
 #SBATCH --partition=comp3710
 #SBATCH --account=comp3710
 #SBATCH --gres=gpu:1
+#SBATCH --exclude=a100-2
 #SBATCH --time=00:20:00
 #SBATCH --output=predict_%j.out
 #SBATCH --error=predict_%j.err
@@ -16,4 +17,4 @@ conda activate tf
 
 # Run inference on the trained model
 cd $HOME/PatternAnalysis-2026/recognition/HipMRI_Segmentation_s48747240
-python predict.py
+python -u predict.py
