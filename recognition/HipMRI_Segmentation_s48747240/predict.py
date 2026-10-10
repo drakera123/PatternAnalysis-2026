@@ -123,6 +123,33 @@ def select_failure_slices(dice, present, areas, k, n_worst, min_gap):
     return selected, worst_classes
 
 
+def select_contrast_slices(dice, present, cls, taken, min_gap):
+    """
+    Pick two extra slices for class `cls` to contrast with the failures:
+    - good:    a typical success (median Dice among slices with Dice >= 0.8)
+    - partial: a partial overlap (Dice in [0.2, 0.6], closest to 0.4)
+    Both must have the class present and be >= min_gap from slices already taken.
+    Returns (good, partial); either may be None if no slice qualifies.
+    """
+    idx = np.where(present[:, cls])[0]
+
+    def far(i, others):
+        return all(abs(int(i) - j) >= min_gap for j in others)
+
+    good = None
+    good_c = [i for i in idx if dice[i, cls] >= 0.8 and far(i, taken)]
+    if good_c:
+        vals = np.array([dice[i, cls] for i in good_c])
+        good = int(good_c[int(np.argmin(np.abs(vals - np.median(vals))))])
+
+    partial = None
+    others = list(taken) + ([good] if good is not None else [])
+    partial_c = [i for i in idx if 0.2 <= dice[i, cls] <= 0.6 and far(i, others)]
+    if partial_c:
+        partial = int(min(partial_c, key=lambda i: abs(dice[i, cls] - 0.4)))
+    return good, partial
+
+
 def visualize_prediction(image, true_mask, pred_mask, index, output_dir,
                          dice_scores, present):
     """
@@ -195,6 +222,16 @@ def main():
         print(f"  slice {i}: GT present c4/c5 = {present[i, 4]}/{present[i, 5]}, "
               f"GT pixels c4/c5 = {int(areas[i, 4])}/{int(areas[i, 5])}")
 
+    cls = worst_classes[0]
+    good, partial = select_contrast_slices(
+        dice, present, cls, selected, MIN_SLICE_GAP
+    )
+    print(f"\nContrast slices for class {cls}: good={good}, partial={partial}")
+    for tag, i in (("good", good), ("partial", partial)):
+        if i is not None:
+            print(f"  {tag} slice {i}: class {cls} Dice={dice[i, cls]:.2f}, "
+                  f"GT pixels={int(areas[i, cls])}")
+    selected = selected + [i for i in (good, partial) if i is not None]
     print("\nPass 2: re-running inference on selected slices for figures...")
     selected_set = set(selected)
     saved = 0
