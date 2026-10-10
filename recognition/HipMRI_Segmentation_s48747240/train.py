@@ -48,7 +48,6 @@ def main():
         model = build_baseline_2d(input_shape=INPUT_SHAPE, num_classes=NUM_CLASSES)
     else:
         model = build_unet_2d(input_shape=INPUT_SHAPE, num_classes=NUM_CLASSES)
-    model = build_unet_2d(input_shape=INPUT_SHAPE, num_classes=NUM_CLASSES)
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE),
         loss=combined_loss,
