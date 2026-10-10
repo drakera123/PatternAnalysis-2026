@@ -12,13 +12,14 @@ Run on Rangpur inside an interactive GPU session or via a Slurm batch script
 """
 
 import os
+import sys
 import time
 import matplotlib
 matplotlib.use("Agg")  # no display on a cluster node
 import matplotlib.pyplot as plt
 import tensorflow as tf
 
-from modules import build_unet_2d, dice_coefficient, combined_loss
+from modules import build_unet_2d, build_baseline_2d, dice_coefficient, combined_loss
 from dataset import load_hipmri_2d
 
 # ---- Config ----
@@ -31,6 +32,9 @@ CHECKPOINT_DIR = "checkpoints"
 PLOTS_DIR = "plots"
 EARLY_STOP = False  # set True for a fast smoke-test run on a handful of slices
 
+# Usage: python train.py [unet|baseline]   (default: unet)
+MODEL_NAME = sys.argv[1] if len(sys.argv) > 1 else "unet"
+CKPT_PREFIX = {"unet": "unet2d", "baseline": "baseline2d"}[MODEL_NAME]
 
 def main():
     os.makedirs(CHECKPOINT_DIR, exist_ok=True)
@@ -40,6 +44,10 @@ def main():
     train_ds, val_ds, test_ds = load_hipmri_2d(batch_size=BATCH_SIZE, early_stop=EARLY_STOP)
 
     print("Building model...")
+    if MODEL_NAME == "baseline":
+        model = build_baseline_2d(input_shape=INPUT_SHAPE, num_classes=NUM_CLASSES)
+    else:
+        model = build_unet_2d(input_shape=INPUT_SHAPE, num_classes=NUM_CLASSES)
     model = build_unet_2d(input_shape=INPUT_SHAPE, num_classes=NUM_CLASSES)
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE),
@@ -50,7 +58,7 @@ def main():
 
     callbacks = [
         tf.keras.callbacks.ModelCheckpoint(
-            filepath=os.path.join(CHECKPOINT_DIR, "unet2d_best.keras"),
+            filepath=os.path.join(CHECKPOINT_DIR, f"{CKPT_PREFIX}_best.keras"),
             monitor="val_dice_coefficient",
             mode="max",
             save_best_only=True,
@@ -78,8 +86,8 @@ def main():
     test_results = model.evaluate(test_ds, return_dict=True)
     print("Test results:", test_results)
 
-    model.save(os.path.join(CHECKPOINT_DIR, "unet2d_final.keras"))
-    print(f"Saved final model to {CHECKPOINT_DIR}/unet2d_final.keras")
+    model.save(os.path.join(CHECKPOINT_DIR, f"{CKPT_PREFIX}_final.keras"))
+    print(f"Saved final model to {CHECKPOINT_DIR}/{CKPT_PREFIX}_final.keras")
     # ---- Resource profiling for the README table ----
     print("Parameters:", model.count_params())
     mem = tf.config.experimental.get_memory_info("GPU:0")
@@ -111,8 +119,9 @@ def plot_history(history):
     axes[1].legend()
 
     fig.tight_layout()
-    fig.savefig(os.path.join(PLOTS_DIR, "training_curves.png"))
-    print(f"Saved training curves to {PLOTS_DIR}/training_curves.png")
+    out = os.path.join(PLOTS_DIR, f"training_curves_{CKPT_PREFIX}.png")
+    fig.savefig(out)
+    print(f"Saved training curves to {out}")
 
 
 if __name__ == "__main__":
