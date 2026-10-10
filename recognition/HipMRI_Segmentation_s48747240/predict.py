@@ -60,15 +60,17 @@ def score_test_set(model, test_ds):
     Returns per-slice, per-class Dice and a boolean array saying which classes
     are present in each ground-truth slice. Both have shape (N, num_classes).
     """
-    dice_rows, present_rows = [], []
+    dice_rows, present_rows, area_rows = [], [], []
     for images, true_masks in test_ds:
         preds = model(images, training=False).numpy()
         true_np = true_masks.numpy()
         for i in range(true_np.shape[0]):
             num_classes = true_np.shape[-1]
             dice_rows.append(per_class_dice(true_np[i], preds[i], num_classes))
-            present_rows.append(true_np[i].reshape(-1, num_classes).sum(axis=0) > 0)
-    return np.array(dice_rows), np.array(present_rows)
+            areas = true_np[i].reshape(-1, num_classes).sum(axis=0)
+            area_rows.append(areas)
+            present_rows.append(areas > 0)
+    return np.array(dice_rows), np.array(present_rows), np.array(area_rows)
 
 
 def select_failure_slices(dice, present, k, n_worst, min_gap):
@@ -93,7 +95,8 @@ def select_failure_slices(dice, present, k, n_worst, min_gap):
     for i in range(dice.shape[0]):
         cs = [c for c in worst_classes if present[i, c]]
         if cs:
-            slice_scores[i] = np.mean([dice[i, c] for c in cs])
+            slice_scores[i] = (np.mean([dice[i, c] for c in cs])
+                               - 1e-6 * sum(areas[i, c] for c in cs))
 
     # Fallback ranking: mean Dice over all classes present in the slice
     overall = np.array([dice[i, present[i]].mean() if present[i].any() else np.inf
@@ -170,7 +173,7 @@ def main():
     _, _, test_ds = load_hipmri_2d(batch_size=1, early_stop=False)
 
     print("Pass 1: scoring every test slice...")
-    dice, present = score_test_set(model, test_ds)
+    dice, present, areas = score_test_set(model, test_ds)
     mean_per_class = dice.mean(axis=0)
 
     print("\n--- Per-class mean Dice score on test set ---")
@@ -184,13 +187,13 @@ def main():
     print(f"  Overall mean Dice: {mean_per_class.mean():.4f}")
 
     selected, worst_classes = select_failure_slices(
-        dice, present, NUM_EXAMPLES_TO_VISUALIZE, NUM_WORST_CLASSES, MIN_SLICE_GAP
+        dice, present, areas, NUM_EXAMPLES_TO_VISUALIZE, NUM_WORST_CLASSES, MIN_SLICE_GAP
     )
     print(f"\nWorst classes targeted: {worst_classes}")
     print(f"Selected test-slice indices: {selected}")
     for i in selected:
-        print(f"  slice {i}: " + ", ".join(f"c{c}={dice[i, c]:.2f}"
-              for c in range(dice.shape[1])))
+        print(f"  slice {i}: GT present c4/c5 = {present[i, 4]}/{present[i, 5]}, "
+              f"GT pixels c4/c5 = {int(areas[i, 4])}/{int(areas[i, 5])}")
 
     print("\nPass 2: re-running inference on selected slices for figures...")
     selected_set = set(selected)
