@@ -15,6 +15,7 @@ assignment spec for predict.py specifically.
 """
 
 import os
+import sys
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -24,8 +25,10 @@ import tensorflow as tf
 from modules import dice_coefficient, combined_loss
 from dataset import load_hipmri_2d
 
-CHECKPOINT_PATH = "checkpoints/unet2d_best.keras"
-OUTPUT_DIR = "predictions"
+MODEL_NAME = sys.argv[1] if len(sys.argv) > 1 else "unet"
+CKPT_PREFIX = {"unet": "unet2d", "baseline": "baseline2d"}[MODEL_NAME]
+CHECKPOINT_PATH = f"checkpoints/{CKPT_PREFIX}_best.keras"
+OUTPUT_DIR = "predictions" if MODEL_NAME == "unet" else "predictions_baseline"
 NUM_EXAMPLES_TO_VISUALIZE = 5
 NUM_WORST_CLASSES = 2   # how many of the weakest classes to target
 MIN_SLICE_GAP = 10      # min index distance between picks (avoids near-duplicates)
