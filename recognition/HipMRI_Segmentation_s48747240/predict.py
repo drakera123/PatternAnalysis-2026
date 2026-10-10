@@ -73,7 +73,7 @@ def score_test_set(model, test_ds):
     return np.array(dice_rows), np.array(present_rows), np.array(area_rows)
 
 
-def select_failure_slices(dice, present, k, n_worst, min_gap):
+def select_failure_slices(dice, present, areas, k, n_worst, min_gap):
     """
     Pick k slices to inspect.
     1. Find the n_worst classes (excluding background class 0) by mean Dice over
