@@ -36,15 +36,13 @@ SPLIT_FOLDERS = {
     "validate": ("keras_slices_validate", "keras_slices_seg_validate"),
     "test": ("keras_slices_test", "keras_slices_seg_test"),
 }
+NUM_CLASSES = 6
 
-
-def to_channels(arr: np.ndarray, dtype=np.uint8) -> np.ndarray:
-    """One-hot encode a label mask into (H, W, num_classes)."""
-    channels = np.unique(arr)
-    res = np.zeros(arr.shape + (len(channels),), dtype=dtype)
-    for c in channels:
-        c = int(c)
-        res[..., c:c + 1][arr == c] = 1
+def to_channels(arr: np.ndarray, num_classes: int, dtype=np.uint8) -> np.ndarray:
+    """One-hot encode a label mask into (H, W, num_classes), using a FIXED class count."""
+    res = np.zeros(arr.shape + (num_classes,), dtype=dtype)
+    for c in range(num_classes):
+        res[..., c][arr == c] = 1
     return res
 
 # Real HipMRI slices are not all the same size (e.g. some are 256x128,
@@ -82,24 +80,20 @@ def resize_to_target(arr: np.ndarray, target_shape=TARGET_SHAPE) -> np.ndarray:
 
 
 def load_data_2D(image_names, norm_image=False, categorical=False,
-                  dtype=np.float32, early_stop=False, target_shape=TARGET_SHAPE):
+                  dtype=np.float32, early_stop=False, target_shape=TARGET_SHAPE,
+                  num_classes=NUM_CLASSES):
     """
     Load a list of 2D Nifti files into a single pre-allocated array.
     Every slice is center-cropped/zero-padded to target_shape first, since
-    real HipMRI slices vary in size across patients/scans.
+    real HipMRI slices vary in size across patients/scans. For label masks
+    (categorical=True), every slice is one-hot encoded against a FIXED
+    num_classes, not whatever labels happen to appear in that slice.
     """
     num = len(image_names)
     rows, cols = target_shape
 
     if categorical:
-        # Determine channel count from the first slice after resizing.
-        first_case = nib.load(image_names[0]).get_fdata(caching="unchanged")
-        if len(first_case.shape) == 3:
-            first_case = first_case[:, :, 0]
-        first_case = resize_to_target(first_case, target_shape)
-        first_case = to_channels(first_case, dtype=dtype)
-        channels = first_case.shape[-1]
-        images = np.zeros((num, rows, cols, channels), dtype=dtype)
+        images = np.zeros((num, rows, cols, num_classes), dtype=dtype)
     else:
         images = np.zeros((num, rows, cols), dtype=dtype)
 
@@ -113,15 +107,7 @@ def load_data_2D(image_names, norm_image=False, categorical=False,
         if norm_image:
             in_image = (in_image - in_image.mean()) / (in_image.std() + 1e-8)
         if categorical:
-            in_image = to_channels(in_image, dtype=dtype)
-            # Guard against a slice introducing a label value not seen in
-            # the first slice (would otherwise produce a channel mismatch).
-            if in_image.shape[-1] != images.shape[-1]:
-                fixed = np.zeros((rows, cols, images.shape[-1]), dtype=dtype)
-                n = min(in_image.shape[-1], images.shape[-1])
-                fixed[..., :n] = in_image[..., :n]
-                in_image = fixed
-            images[i, :, :, :] = in_image
+            images[i, :, :, :] = to_channels(in_image, num_classes, dtype=dtype)
         else:
             images[i, :, :] = in_image
         if early_stop and i > 20:
@@ -183,7 +169,8 @@ def _load_split(split: str, early_stop: bool = False):
     mask_paths = [_image_to_seg_path(p, seg_folder) for p in image_paths]
 
     x = load_data_2D(image_paths, norm_image=True, early_stop=early_stop)
-    y = load_data_2D(mask_paths, categorical=True, dtype=np.uint8, early_stop=early_stop)
+    y = load_data_2D(mask_paths, categorical=True, dtype=np.uint8, early_stop=early_stop,
+                  num_classes=NUM_CLASSES)
 
     x = x[..., np.newaxis].astype(np.float32)  # add channel dim
     y = y.astype(np.float32)
