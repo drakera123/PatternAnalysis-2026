@@ -108,3 +108,82 @@ def combined_loss(y_true, y_pred):
     """Dice loss + categorical crossentropy, a common choice for segmentation."""
     cce = tf.keras.losses.CategoricalCrossentropy()(y_true, y_pred)
     return dice_loss(y_true, y_pred) + cce
+
+
+def norm_act(x, name):
+    """Instance normalisation (GroupNorm with one group per channel) + leaky ReLU."""
+    channels = x.shape[-1]
+    x = layers.GroupNormalization(groups=channels, name=f"{name}_in")(x)
+    return layers.LeakyReLU(negative_slope=0.01, name=f"{name}_lrelu")(x)
+
+
+def context_module(x, filters, name, dropout=0.3):
+    """Pre-activation residual block: two 3x3 convs with dropout between them."""
+    h = norm_act(x, f"{name}_a")
+    h = layers.Conv2D(filters, 3, padding="same", name=f"{name}_conv1")(h)
+    h = layers.Dropout(dropout, name=f"{name}_drop")(h)
+    h = norm_act(h, f"{name}_b")
+    h = layers.Conv2D(filters, 3, padding="same", name=f"{name}_conv2")(h)
+    return layers.Add(name=f"{name}_add")([x, h])
+
+
+def build_improved_unet_2d(input_shape=(256, 128, 1), num_classes=6,
+                           base_filters=16, dropout=0.3):
+    """
+    2D Improved U-Net (Isensee et al., 2018): residual context modules,
+    instance norm + leaky ReLU, strided-conv downsampling, localization
+    modules, and deep supervision by summing upsampled segmentation outputs
+    from the three highest-resolution decoder levels.
+    """
+    inputs = layers.Input(shape=input_shape, name="input_image")
+
+    # Encoder: 5 levels (16, 32, 64, 128, 256 filters by default)
+    x = layers.Conv2D(base_filters, 3, padding="same", name="stem_conv")(inputs)
+    skips = []
+    for level in range(5):
+        filters = base_filters * 2 ** level
+        if level > 0:
+            x = layers.Conv2D(filters, 3, strides=2, padding="same",
+                              name=f"enc{level}_down")(x)
+        x = context_module(x, filters, f"enc{level}", dropout)
+        skips.append(x)
+
+    # Decoder with localization modules; collect deep-supervision outputs
+    x = skips[-1]
+    seg_outputs = []
+    for level in range(3, -1, -1):
+        filters = base_filters * 2 ** level
+        x = layers.UpSampling2D(2, name=f"dec{level}_up")(x)
+        x = layers.Conv2D(filters, 3, padding="same", name=f"dec{level}_upconv")(x)
+        x = norm_act(x, f"dec{level}_up")
+        x = layers.Concatenate(name=f"dec{level}_concat")([skips[level], x])
+        x = layers.Conv2D(filters, 3, padding="same", name=f"dec{level}_loc1")(x)
+        x = norm_act(x, f"dec{level}_loc1")
+        x = layers.Conv2D(filters, 1, name=f"dec{level}_loc2")(x)
+        x = norm_act(x, f"dec{level}_loc2")
+        if level <= 2:
+            seg_outputs.append(
+                layers.Conv2D(num_classes, 1, name=f"seg{level}")(x))
+
+    # Deep supervision: upsample lower-resolution outputs and add
+    s = seg_outputs[0]
+    for i, nxt in enumerate(seg_outputs[1:]):
+        s = layers.UpSampling2D(2, name=f"seg_up{i}")(s)
+        s = layers.Add(name=f"seg_add{i}")([s, nxt])
+    outputs = layers.Activation("softmax", name="segmentation_output")(s)
+
+    return Model(inputs, outputs, name="ImprovedUNet2D")
+
+
+def multiclass_dice_loss(y_true, y_pred, smooth=1e-6):
+    """Per-class soft Dice (averaged over classes), unlike the global dice_loss."""
+    axes = [0, 1, 2]
+    inter = tf.reduce_sum(y_true * y_pred, axis=axes)
+    denom = tf.reduce_sum(y_true, axis=axes) + tf.reduce_sum(y_pred, axis=axes)
+    return 1.0 - tf.reduce_mean((2.0 * inter + smooth) / (denom + smooth))
+
+
+def combined_loss_per_class(y_true, y_pred):
+    """Per-class Dice loss + categorical crossentropy."""
+    cce = tf.keras.losses.CategoricalCrossentropy()(y_true, y_pred)
+    return multiclass_dice_loss(y_true, y_pred) + cce
