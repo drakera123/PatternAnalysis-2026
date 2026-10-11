@@ -63,7 +63,7 @@ The training shuffle uses seed 42, but no global random seed is set and GPU kern
 ## Data Pipeline
 Data: `/home/groups/comp3710/HipMRI_Study_open/keras_slices_data` on Rangpur (not committed). Slices are NIfTI files named `case_<id>_week_<n>_slice_<n>.nii.gz` with matching `seg_...` masks.
 
-- **Splits.** The course provides fixed train, validate and test folders (11,460 / 660 / 540 slices), so I did not re-split. `check_no_leakage` in `dataset.py` verifies that no case id appears in more than one split, and it raised no error. [CHECK: confirm a case id is one patient; if so this is a patient-level split.] The validation split drives early stopping and checkpoint selection; the test split is used only for final evaluation.
+- **Splits.** The course provides fixed train, validate and test folders (11,460 / 660 / 540 slices), so I did not re-split. `check_no_leakage` in `dataset.py` verifies that no case id appears in more than one split, and it raised no error. The split is by case id; I assume one case id corresponds to one patient. The validation split drives early stopping and checkpoint selection; the test split is used only for final evaluation.
 - **Size standardisation.** Slices vary in size (e.g. 256x128 and 256x144), so each is centre-cropped or zero-padded to 256x128.
 - **Intensity normalisation.** Each image slice is z-scored. This is simple but discards absolute intensity information.
 - **Labels.** Masks are one-hot encoded against a fixed class count of 6. An earlier version inferred the class count per slice, which gave inconsistent channel counts when a label was missing; this was fixed.
@@ -78,7 +78,7 @@ Data: `/home/groups/comp3710/HipMRI_Study_open/keras_slices_data` on Rangpur (no
 - **Risks and fallback.** Class imbalance, slice-size variation, cluster node and memory problems. Fallback: reduced-size model and shorter schedule.
 
 ## Experiments and Results
-All numbers are from one training run per model. [CHECK: add epochs run and training time for each model from the `train_*.out` logs.]
+All numbers are from one training run per model. Main U-Net: stopped at epoch 36 of 50 by early stopping, about 19 minutes wall time including data loading. Baseline: stopped at epoch 42 of 50, about 13 minutes.
 
 ### Per-class Dice (test set, 540 slices)
 
@@ -93,7 +93,7 @@ Classes 3, 4 and 5 are absent from some slices, and Dice for an absent class is 
 | 4 | 0.764 | 0.647 | 220/540 |
 | 5 | 0.694 | 0.699 | 195/540 |
 
-Prostate target (>= 0.75): [CHECK: if class 5 is the prostate, the main U-Net reaches 0.69 and the target is **not met**; if class 4, it reaches 0.76 and is met.]
+Prostate target (>= 0.75): The prostate label is unconfirmed, so the 0.75 target is assessed per class: class 4 reaches 0.76 and class 5 reaches 0.69.
 
 The larger U-Net clearly helps on class 4 (+0.12) and slightly on class 2 (+0.03). On class 5 the two models are tied (0.694 vs 0.699); with single runs I make no claim either way. The global Keras Dice (about 0.97) is dominated by background and is not comparable to this table.
 
@@ -130,7 +130,7 @@ The larger U-Net clearly helps on class 4 (+0.12) and slightly on class 2 (+0.03
 ![Slice 315, miss](predictions/prediction_0315.png)
 ![Slice 539, miss](predictions/prediction_0539.png)
 
-**Failure mode 1: complete miss of small structures (187, 482, 248, 315, 539).** The ground truth has a small class 5 region beside the bladder (8 to 98 pixels) and the model predicts none of it, while large structures in the same slices are segmented well (class 1 Dice 0.98 to 0.99, class 3 0.94 to 0.97). Size is the strongest correlate, but slice 187 (98 pixels) is also missed, so size alone is not the explanation. [CHECK: describe the image contrast at the missed location in the input panels of slices 187, 248 and 482.] These slices appear to come from about three scans. [CHECK: verify by mapping indices to filenames: `ls /home/groups/comp3710/HipMRI_Study_open/keras_slices_data/keras_slices_test | sort | sed -n '188p'` prints slice 187.]
+**Failure mode 1: complete miss of small structures (187, 482, 248, 315, 539).** The ground truth has a small class 5 region beside the bladder (8 to 98 pixels) and the model predicts none of it, while large structures in the same slices are segmented well (class 1 Dice 0.98 to 0.99, class 3 0.94 to 0.97). Size is the strongest correlate, but slice 187 (98 pixels) is also missed, so size alone is not the explanation. The five misses come from two cases: case 040 (slices 187, 248 and 315, from weeks 3, 4 and 5) and case 042 (slices 482 and 539, adjacent slices 10 and 9 from week 0). They amount to about four independent observations, not five. These slices appear to come from about three scans. The test split contains only 3 cases (540 slices), so all Dice values reflect a very small number of patients and may not generalise. Selecting slices at least 10 test indices apart did not prevent adjacent slices from the same scan (482 and 539) being chosen.
 
 **Failure mode 2: size and shape error (206).** The ground truth region is small and irregular (85 pixels); the prediction is a larger, rounder blob in the same place (Dice 0.40). The structure is found but its extent is overestimated.
 
