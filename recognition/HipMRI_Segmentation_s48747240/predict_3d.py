@@ -14,7 +14,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import tensorflow as tf
 
-from dataset import load_hipmri_3d, NUM_CLASSES
+from dataset_3d import load_hipmri_3d, NUM_CLASSES
 
 MODEL_NAME = sys.argv[1] if len(sys.argv) > 1 else "improved3d"
 CKPT = {"baseline3d": "unet3d", "improved3d": "improved3d"}[MODEL_NAME]
