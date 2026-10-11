@@ -19,7 +19,8 @@ matplotlib.use("Agg")  # no display on a cluster node
 import matplotlib.pyplot as plt
 import tensorflow as tf
 
-from modules import build_unet_2d, build_baseline_2d, dice_coefficient, combined_loss
+from modules import (build_unet_2d, build_baseline_2d, build_improved_unet_2d,
+                     dice_coefficient, combined_loss, combined_loss_per_class)
 from dataset import load_hipmri_2d
 
 # ---- Config ----
@@ -34,7 +35,9 @@ EARLY_STOP = False  # set True for a fast smoke-test run on a handful of slices
 
 # Usage: python train.py [unet|baseline]   (default: unet)
 MODEL_NAME = sys.argv[1] if len(sys.argv) > 1 else "unet"
-CKPT_PREFIX = {"unet": "unet2d", "baseline": "baseline2d"}[MODEL_NAME]
+CKPT_PREFIX = {"unet": "unet2d", "baseline": "baseline2d",
+               "improved": "improved2d",
+               "improved_pcd": "improved2d_pcd"}[MODEL_NAME]
 
 def main():
     os.makedirs(CHECKPOINT_DIR, exist_ok=True)
@@ -46,11 +49,14 @@ def main():
     print("Building model...")
     if MODEL_NAME == "baseline":
         model = build_baseline_2d(input_shape=INPUT_SHAPE, num_classes=NUM_CLASSES)
+    elif MODEL_NAME in ("improved", "improved_pcd"):
+        model = build_improved_unet_2d(input_shape=INPUT_SHAPE, num_classes=NUM_CLASSES)
     else:
         model = build_unet_2d(input_shape=INPUT_SHAPE, num_classes=NUM_CLASSES)
+    loss_fn = combined_loss_per_class if MODEL_NAME == "improved_pcd" else combined_loss
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE),
-        loss=combined_loss,
+        loss=loss_fn,
         metrics=[dice_coefficient, "accuracy"],
     )
     model.summary()
