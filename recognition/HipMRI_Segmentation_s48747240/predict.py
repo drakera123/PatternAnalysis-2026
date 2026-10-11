@@ -26,9 +26,11 @@ from modules import dice_coefficient, combined_loss
 from dataset import load_hipmri_2d
 
 MODEL_NAME = sys.argv[1] if len(sys.argv) > 1 else "unet"
-CKPT_PREFIX = {"unet": "unet2d", "baseline": "baseline2d"}[MODEL_NAME]
+CKPT_PREFIX = {"unet": "unet2d", "baseline": "baseline2d",
+               "improved": "improved2d",
+               "improved_pcd": "improved2d_pcd"}[MODEL_NAME]
 CHECKPOINT_PATH = f"checkpoints/{CKPT_PREFIX}_best.keras"
-OUTPUT_DIR = "predictions" if MODEL_NAME == "unet" else "predictions_baseline"
+OUTPUT_DIR = "predictions" if MODEL_NAME == "unet" else f"predictions_{MODEL_NAME}"
 NUM_EXAMPLES_TO_VISUALIZE = 5
 NUM_WORST_CLASSES = 2   # how many of the weakest classes to target
 MIN_SLICE_GAP = 10      # min index distance between picks (avoids near-duplicates)
@@ -36,13 +38,7 @@ MIN_SLICE_GAP = 10      # min index distance between picks (avoids near-duplicat
 
 def load_trained_model(checkpoint_path: str) -> tf.keras.Model:
     """Load a saved model, registering the custom loss/metric used in training."""
-    return tf.keras.models.load_model(
-        checkpoint_path,
-        custom_objects={
-            "dice_coefficient": dice_coefficient,
-            "combined_loss": combined_loss,
-        },
-    )
+    return tf.keras.models.load_model(checkpoint_path, compile=False)
 
 
 def per_class_dice(y_true, y_pred, num_classes, smooth=1e-6):
