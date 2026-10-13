@@ -38,12 +38,36 @@ This project uses data from the **HipMRI Study**, accessed via the University of
 
 ## 3. Feasibility review
 
-[CHECK: replace this with the one-page review you actually presented at the midpoint check-off. The draft below must match what you presented and measured.]
+**Purpose.** To decide, before committing GPU time, whether a 3D Improved U-Net on downsampled HipMRI volumes was feasible and how success would be judged.
 
-- **User and acceptance criteria.** User: a clinician reviewing draft contours. Criteria: (1) Dice >= 0.7 on the test set; (2) per-class Dice reported; (3) 3 to 5 failure cases diagnosed; (4) a full training run within a few GPU-hours on one A100.
-- **Model and course concepts.** 3D Improved U-Net on downsampled HipMRI 3D volumes (Hard tier), with a 3D U-Net baseline.
-- **Preliminary evidence.** A data audit (`check_3d.py`, not committed) found 211 MR volumes paired one-to-one with 211 label volumes from 38 patients; shapes were 256x256x128 for 210 volumes and 256x256x144 for one; labels were values 0 to 5. A 16-volume, 2-epoch smoke test confirmed the model trains on GPU (peak memory 3.3 GB).
-- **Risks and fallback.** Small test set, severe class imbalance, cluster node problems. Fallback: revert to the plain 3D U-Net baseline alone if the Improved U-Net does not train reliably in time.
+**User need and scope.** The user is a radiotherapy treatment planning specialist who contours the prostate and surrounding organs-at-risk on each MRI volume by hand. The prototype proposes draft 3D segmentation masks (six labels) for the specialist to review and edit, not to replace manual contouring. The task is limited to downsampled volumes (128x128x64) from the HipMRI semantic MR and label folders.
+
+**Acceptance criteria.**
+1. Dice >= 0.7 on every foreground class on a held-out test set.
+2. Strict patient-level separation: every scan of a patient lies in exactly one of train, validation and test, enforced by an assertion.
+3. Per-class Dice reported per test volume, with 3 to 5 failure cases inspected visually.
+4. Resource limits: peak training memory within one A100 (40 GB), inference under 1 second per volume, and a full training run within a few GPU-hours.
+5. The Improved U-Net compared against a plain 3D U-Net on the same split.
+
+**Model choice and course concepts.** The model is a 3D Improved U-Net (Isensee et al., 2018), which is Hard difficulty: residual context modules, instance normalisation with leaky ReLU, strided-convolution downsampling, localization modules and deep supervision. A plain 3D U-Net (Cicek et al., 2016) with skip connections is the baseline. The Dice-plus-cross-entropy loss is computed per class, because small structures such as class 5 occupy about 0.1% of voxels and a global Dice would be dominated by background. Downsampling by 2 in each axis keeps the volumes within GPU memory.
+
+**Preliminary feasibility evidence.**
+- *Data audit.* 211 MR volumes pair one-to-one with 211 label volumes from 38 patients. Voxel spacing is about 1.56 mm in all axes. 210 volumes are 256x256x128 and one is 256x256x144 (centre-cropped to 128). Labels take values 0 to 5. In the first label volume, class 5 covers about 0.12% of voxels.
+- *Model build.* Both models build with output shape (128, 128, 64, 6): 5,650,886 parameters (baseline) and 8,267,618 parameters (Improved U-Net).
+- *Smoke test.* A 16-volume, 2-epoch run on one A100 trained at about 1 s per step with batch size 2 (after a 87 s first-epoch compile), with peak GPU memory of 3.32 GB. Loss fell from 2.02 to 1.02 and mean foreground Dice rose from 0.11 to 0.21.
+- *Time estimate.* About 70 steps per epoch at roughly 0.1 to 0.15 s per step puts a full run at well under a GPU-hour, even for 100 epochs.
+
+**Risks, budget and fallback.**
+
+| Risk | Mitigation |
+|---|---|
+| Few patients (38), so a small, noisy test set | Patient-level split; report per-class Dice and state the limitation |
+| Severe class imbalance for small structures | Per-class Dice loss plus cross-entropy |
+| Downsampling removes detail of small structures | Nearest-neighbour label sampling; state that Dice is at reduced resolution |
+| Memory pressure and node crashes seen on the cluster | Images stored as float16, labels as uint8, one-hot encoding per batch; a crashing node excluded |
+| Long queue waits | Smoke test first, short time limits, dependent prediction jobs |
+
+*Compute budget:* one A100 on partition `comp3710`; a 20-minute smoke job, then one training job and one prediction job per model. *Next planned experiment:* the full 100-epoch run of both models with early stopping. *Fallback:* if the Improved U-Net did not train reliably, report the plain 3D U-Net as the delivered model and describe the Improved U-Net as incomplete.
 
 ## 4. Data pipeline
 
