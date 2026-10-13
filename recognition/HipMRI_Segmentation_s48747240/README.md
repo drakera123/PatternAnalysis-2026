@@ -180,8 +180,40 @@ The 3D models meet the Dice >= 0.7 target on every class, so a 3D model is a rea
 2. **Review small structures.** Flag volumes where class 5 is small or has low model confidence for manual review, since the weakest volumes cluster on particular patients.
 3. **Validate at full resolution.** Results here are at half resolution in each axis with strided labels; re-evaluate at full resolution before any clinical claim.
 4. **More patients.** Use cross-validation over patients, or a larger held-out set, to quantify the variation between patients.
-## Artificial Intelligence Usage Disclosure
 
-<!-- Document: which AI tools were used, what tasks they assisted with,
-and how outputs were audited/verified. Required subsection per Section 6.1
-of the assessment spec. -->
+## 8. AI Usage Disclosure
+
+Generative AI (Claude, Anthropic) was used during this project as a coding
+and writing assistant, under my direction and with all outputs verified
+against real runs on Rangpur before being included here. Specific uses:
+
+- **Architecture implementation.** Claude helped translate the Isensee et
+  al. (2018) Improved U-Net and the Cicek et al. (2016) 3D U-Net
+  descriptions into TensorFlow/Keras code (`modules_3d.py`), including the
+  context modules, strided downsampling, localization modules and deep
+  supervision for the Improved U-Net. All architectural choices were
+  specified by me (filter counts, dropout rate, normalisation choice); the
+  code was reviewed and the parameter counts and output shapes confirmed
+  against the real `model.summary()` output in `train_651650.out` and
+  `train_651651.out` before being reported.
+- **Data pipeline.** Claude assisted with the patient-level train/val/test
+  split logic and leakage assertions in `dataset_3d.py`, and with
+  diagnosing the real file-naming convention
+  (`<PatientID>_Week<N>_LFOV.nii.gz` / `_SEMANTIC.nii.gz`) from directory
+  listings I provided.
+- **Evaluation and reporting.** Claude helped write the per-class Dice
+  scoring and failure-case selection logic in `predict_3d.py`, and helped
+  draft this README. All numbers quoted (Dice scores, parameter counts,
+  GPU memory, training times, epoch counts) were taken directly from real
+  Slurm job logs (`train_651650.out`, `train_651651.out`) that I pasted in
+  and that Claude did not generate. The failure-case descriptions in
+  Section 6.3 were written from my own visual inspection of the saved
+  prediction figures, which Claude does not have independent access to.
+- **Debugging.** Claude helped interpret Slurm/CUDA error messages and git
+  workflow issues (merge conflicts, diverged branches) encountered while
+  running jobs and syncing code between my laptop and Rangpur.
+
+No AI tool was used to generate or fabricate experimental results; every
+number in Sections 6 and the resource profile comes from an actual
+training/evaluation run on Rangpur, and figures are the real output of
+`predict_3d.py`.
