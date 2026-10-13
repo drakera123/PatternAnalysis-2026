@@ -53,7 +53,7 @@ Data: `/home/groups/comp3710/HipMRI_Study_open/semantic_MRs` and `semantic_label
 - **Depth fix.** One volume has 144 slices in depth; it is centre-cropped to 128.
 - **Downsampling.** 256x256x128 to 128x128x64. Images use 2x2x2 block averaging; labels use strided (nearest-neighbour) sampling so label values stay valid. Class 5 is about 0.1% of voxels at full resolution, so small structures lose detail in this step.
 - **Intensity normalisation.** Each volume is z-scored.
-- **Memory.** Images are held as float16 and labels as uint8; one-hot encoding happens per batch on the GPU. (An earlier version held float32 one-hot arrays in RAM and crashed one node.)
+- **Memory.** Images are held as float16 and labels as uint8; one-hot encoding happens per batch in the input pipeline. (An earlier version held float32 one-hot arrays in RAM and crashed one node.)
 - **Augmentation.** Random flip along axis 0 on the training set only. [CHECK: I assumed axis 0 is left-right. Look at the figures in Section 6; if the anatomy looks wrong, say so here.]
 
 ## 5. Dependencies and reproducibility
