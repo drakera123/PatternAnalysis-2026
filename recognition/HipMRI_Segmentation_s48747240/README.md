@@ -73,13 +73,12 @@ This project uses data from the **HipMRI Study**, accessed via the University of
 
 Data: `/home/groups/comp3710/HipMRI_Study_open/semantic_MRs` and `semantic_labels_only` (not committed). `B006_Week0_LFOV.nii.gz` pairs with `B006_Week0_SEMANTIC.nii.gz`.
 
-- **Patient-level split.** The first part of the filename (for example `B006`) is the patient ID, and each patient has between 1 and 8 weekly scans. Patients are shuffled with a fixed seed (42) and every scan of a patient goes to exactly one split, with an assertion that the splits are disjoint. The split is 26 / 6 / 6 patients, which gives **136 training, 48 validation and 27 test volumes**. The test patients are J026, K008, S028, T009, T014 and V027. Validation drives early stopping and checkpointing; the test set is used only for final evaluation. [CHECK: confirm with your tutor that the letter-and-number prefix is one patient.]
+- **Patient-level split.** The first part of the filename (for example `B006`) is the patient ID, and each patient has between 1 and 8 weekly scans. Patients are shuffled with a fixed seed (42) and every scan of a patient goes to exactly one split, with an assertion that the splits are disjoint. The split is 26 / 6 / 6 patients, which gives **136 training, 48 validation and 27 test volumes**. The test patients are J026, K008, S028, T009, T014 and V027. Validation drives early stopping and checkpointing; the test set is used only for final evaluation.I treat the letter-and-number prefix (for example B006) as one patient, because every prefix has weekly scans (Week0 to Week7) following the same naming pattern. This is an inference from the filenames and was not confirmed against dataset documentation.
 - **Depth fix.** One volume has 144 slices in depth; it is centre-cropped to 128.
 - **Downsampling.** 256x256x128 to 128x128x64. Images use 2x2x2 block averaging; labels use strided (nearest-neighbour) sampling so label values stay valid. Class 5 is about 0.1% of voxels at full resolution, so small structures lose detail in this step.
 - **Intensity normalisation.** Each volume is z-scored.
 - **Memory.** Images are held as float16 and labels as uint8; one-hot encoding happens per batch in the input pipeline. (An earlier version held float32 one-hot arrays in RAM and crashed one node.)
-- **Augmentation.** Random flip along axis 0 on the training set only. [CHECK: I assumed axis 0 is left-right. Look at the figures in Section 6; if the anatomy looks wrong, say so here.]
-
+- **Augmentation.** Random flip along axis 0 on the training set only. I assumed axis 0 is the left-right axis. In the prediction slices I inspected, the anatomy appears bilaterally symmetric and consistently oriented, so I saw no sign that the flip created mirrored or misoriented training cases. I did not verify the axis from the NIfTI affine, so this is a visual check only.
 ## 5. Dependencies and reproducibility
 
 Python 3.11 (conda env `tf`), tensorflow 2.21.0, nibabel 5.4.2, numpy 2.4.6, matplotlib 3.11.2, tqdm 4.70.1. Run on one NVIDIA A100 40 GB on Rangpur, partition `comp3710`, with no `--mem` request (the nodes reject one).
@@ -116,7 +115,7 @@ All numbers are from one training run per model. Dice is computed per test volum
 | 5 | 0.817 | 0.837 |
 | **Mean foreground (1 to 5)** | **0.897** | **0.908** |
 
-**Target (Dice >= 0.7):** both models exceed 0.7 on every class, including the weakest (class 5: 0.82 and 0.84), so the target is met whichever label is the prostate. [CHECK: the prostate label has not been confirmed with the teaching team. If you confirm it, name the class and quote its Dice here.]
+**Target (Dice >= 0.7):** both models exceed 0.7 on every class, including the weakest (class 5: 0.82 and 0.84), so the target is met whichever label is the prostate. The prostate label was not confirmed against dataset documentation, so results are reported by class number; the target is met on all of them.
 
 The Improved U-Net did **not** beat the plain 3D U-Net: its mean foreground Dice is about 0.01 lower. With single runs on 6 test patients I treat this as a tie, not a loss, and I make no claim about which architecture is better.
 
