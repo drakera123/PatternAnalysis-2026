@@ -131,8 +131,36 @@ The Improved U-Net has 1.46x the parameters of the baseline but is about 2.4x sl
 ![T014_Week2, Baseline](predictions_baseline3d/vol_00_T014_Week2.png)
 ![J026_Week1, Baseline](predictions_baseline3d/vol_01_J026_Week1.png)
 
-[CHECK: write the autopsy from the figures. For each failure, say where the prediction disagrees with the ground truth (boundary leakage into neighbouring structures, under-segmentation, a displaced region) and what is visible in the input slice (low contrast, adjacent bright bladder, etc.). Say whether the anatomy looks correct, which also tests the flip assumption in Section 4. Do not describe anything you cannot see.]
+Across the four Improved U-Net failure cases and three baseline failure cases
+inspected, errors fall into two distinct patterns rather than a diffuse
+blur:
 
+1. **Boundary leakage on the paired lateral structures** (visible top and
+   bottom of each slice): a thin, broken ring of disagreement traces the
+   edge of an otherwise correctly detected region. The structure's core is
+   right in both ground truth and prediction; only a 1-2 voxel margin at
+   its edge is inconsistent.
+2. **A denser error cluster at the interface between the two central
+   structures** (likely adjacent soft-tissue organs in the prostate region).
+   This is where most of the error mass concentrates in every weaker case.
+   The input MRI shows little to no intensity contrast at this boundary,
+   unlike the sharp edges around bone, so the model has little signal to
+   place the boundary precisely.
+
+T014_Week1 and T014_Week2 additionally show a thin, uniform vertical red
+stripe at the right edge of the frame, unrelated to any anatomical
+structure. Its straightness and position suggest a resizing/cropping
+artifact at the downsampled volume's edge rather than a model failure, and
+it is worth a follow-up check of the crop/resize step in `dataset_3d.py`.
+
+The best-performing volume (V027_Week7, Dice 0.91) shows the same two
+failure patterns at much smaller scale, suggesting these are a matter of
+degree rather than a different failure mode entirely.
+
+Anatomy in all six inspected slices is bilaterally symmetric and
+consistent with correctly oriented axial pelvic imaging, so the
+left-right flip augmentation (Section 4) does not appear to have
+introduced any mirrored or misoriented training cases.
 Observations supported by the numbers alone:
 - The worst class-5 volumes score 0.70 to 0.78. These are mild shortfalls rather than complete misses.
 - J026 contributes the worst volumes for both models (weeks 1 and 6 for the Improved U-Net, week 1 for the baseline), so the weakest results cluster on one patient.
