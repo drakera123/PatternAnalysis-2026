@@ -1,114 +1,48 @@
-# Feasibility Review: HipMRI 2D Prostate Segmentation
+# Feasibility Review: 3D Improved U-Net for HipMRI Prostate MRI Segmentation
 
-*Marcus Wee Lam Seow, s4874724 — COMP3710 Pattern Recognition*
+**Marcus Wee Lam Seow, s48747240** | COMP3710 Pattern Recognition | Hard difficulty (3D Improved U-Net, downsampled HipMRI 3D data)
 
-## 1. User Need, Scope & Acceptance Criteria
+## 1. User need, scope and acceptance criteria
 
-The intended user is a radiotherapy treatment planning specialist, who
-currently manually contours the prostate and surrounding organs-at-risk
-(OARs) on each MRI slice — a time-consuming step in planning. This
-prototype aims to propose draft 2D segmentation masks (prostate, bladder,
-rectum, bone, body outline) for the specialist to review and adjust,
-rather than replace manual contouring outright.
+**User.** A radiotherapy treatment planning specialist who currently contours the prostate and surrounding organs-at-risk by hand on each MRI volume.
 
-Acceptance criteria:
-- Mean Dice similarity coefficient ≥ 0.75 on the prostate label on the
-  held-out test split
-- Model correctly identifies at least 3 of 5 manually-flagged boundary
-  failure cases (e.g. apex/base slices) during the qualitative autopsy
-- Peak GPU VRAM during training stays within Rangpur's available GPU
-  memory allocation (to be confirmed once run on a GPU node)
-- Per-slice inference latency suitable for interactive clinical review
-  (target: under 1 second/slice)
+**Purpose.** A prototype that proposes draft 3D segmentation masks (six labels: background plus five anatomical structures) for the specialist to review and edit. It assists manual contouring and does not replace it.
 
-## 2. Model Choice & Course Concepts
+**Scope.** Downsampled volumes (128x128x64) from the HipMRI `semantic_MRs` and `semantic_labels_only` folders on Rangpur.
 
-The chosen dataset is the HipMRI 2D prostate slice dataset
-(`keras_slices_data`), already split by the course team into
-train/validate/test folders on Rangpur. The initial model is a standard
-2D U-Net (Ronneberger et al., 2015), using an encoder-decoder
-architecture with skip connections to preserve spatial detail lost
-during downsampling — a core course concept for dense pixel-wise
-prediction tasks. This establishes an Easy-difficulty baseline and
-verifies the data pipeline. The project will then scale to Normal (2D
-Improved U-Net or CAN) and Hard (3D Improved U-Net or CAN3D on
-downsampled 3D HipMRI volumes) difficulty, following the course's
-recommended incremental pathway (Section 1.3), with the simpler 2D U-Net
-retained as the baseline for the mandatory benchmarking comparison
-(Section 2.2).
+**Acceptance criteria.**
+1. Dice >= 0.7 on every foreground class on a held-out test set.
+2. Strict patient-level separation: every scan of a patient lies in exactly one of train, validation and test, enforced by an assertion.
+3. Per-class Dice reported per test volume, with 3 to 5 failure cases inspected visually.
+4. Resource limits: peak training memory within one A100 (40 GB), inference under 1 second per volume, a full training run within a few GPU-hours.
+5. The Improved U-Net compared against a plain 3D U-Net on the same split.
 
-## 3. Feasibility review
+## 2. Model choice and course concepts
 
-This is the review presented at the midpoint check-off. At that point the
-plan was a 2D U-Net baseline with a path to Normal-tier (2D Improved
-U-Net/CAN) and, time permitting, Hard-tier 3D. The project was later
-extended to the 3D Improved U-Net and 3D U-Net baseline reported here.
+- **Model.** 3D Improved U-Net (Isensee et al., 2018): residual context modules, instance normalisation with leaky ReLU, strided-convolution downsampling, localization modules and deep supervision.
+- **Baseline.** Plain 3D U-Net (Cicek et al., 2016) with skip connections, batch norm and max pooling.
+- **Loss.** Per-class soft Dice plus cross-entropy. Small structures such as class 5 occupy about 0.1% of voxels, so a global Dice would be dominated by background.
+- **Data handling.** Downsampling by 2 in each axis to fit GPU memory (images block-averaged, labels nearest-neighbour). Images held as float16 and labels as uint8, with one-hot encoding per batch to limit RAM use.
 
-- **User, scope and acceptance criteria.** User: a radiotherapy treatment
-  planning specialist who currently manually contours the prostate and
-  surrounding organs-at-risk (OARs) on each MRI slice. The prototype
-  proposes draft 2D segmentation masks (prostate, bladder, rectum, bone,
-  body outline) for the specialist to review and adjust, not to replace
-  manual contouring. Criteria at the time: (1) mean Dice >= 0.75 on the
-  prostate label on the held-out test split; (2) the model correctly
-  identifies at least 3 of 5 manually-flagged boundary failure cases
-  (e.g. apex/base slices) during the qualitative autopsy; (3) peak GPU
-  VRAM during training stays within Rangpur's available allocation
-  (to be confirmed once run on a GPU node); (4) per-slice inference
-  latency suitable for interactive clinical review (target: under 1
-  second/slice).
-- **Model and course concepts.** HipMRI 2D prostate slice dataset
-  (`keras_slices_data`), already split by the course team into
-  train/validate/test folders on Rangpur. Initial model: a standard 2D
-  U-Net (Ronneberger et al., 2015), encoder-decoder with skip connections
-  to preserve spatial detail lost during downsampling. This establishes
-  an Easy-difficulty baseline and verifies the data pipeline, with a
-  planned path to Normal (2D Improved U-Net or CAN) and Hard (3D Improved
-  U-Net or CAN3D on downsampled 3D HipMRI volumes), following the
-  course's recommended incremental pathway, with the simpler 2D U-Net
-  retained as the baseline for the mandatory benchmarking comparison.
-- **Preliminary evidence.** The full pipeline (`dataset.py`, `modules.py`,
-  `train.py`, `predict.py`) was implemented in TensorFlow/Keras and
-  smoke-tested end-to-end locally on synthetic data matching the real
-  HipMRI folder/filename structure. `train.py` built a 2D U-Net
-  (7,771,462 parameters), trained for 19 epochs with early stopping, and
-  saved checkpoints and training curves. `predict.py` loaded the saved
-  model, ran inference across the test split, computed per-class Dice
-  scores, and saved 5 qualitative comparison visualisations. Dice on the
-  synthetic smoke test was ~0.17 (near-random for 6 classes), as
-  expected, confirming the architecture, training loop and evaluation
-  code worked correctly, not that the model performed well. The real
-  HipMRI folder structure was confirmed on Rangpur:
-  `keras_slices_train/validate/test` with matching
-  `keras_slices_seg_train/validate/test` label folders.
-- **Risks and fallback (at the time).** 3D volumetric training might
-  exceed available GPU memory, requiring patch-based or downsampled
-  subvolumes; severe class imbalance (prostate occupies <2% of each
-  slice) might require a weighted or Dice-based loss rather than plain
-  cross-entropy; label class count and slice dimensions were assumed,
-  not yet confirmed. Fallback at the time: if the 3D Hard-tier model
-  proved infeasible, submit the Normal-tier 2D Improved U-Net/CAN
-  instead. In the event, the 3D Hard-tier models (Section 1) were
-  successfully trained and are the final submission; the earlier 2D work
-  is preserved in `2d_u-net` as supporting history.
+## 3. Preliminary feasibility evidence
 
-## 4. Risks, Budget & Fallback
+- **Data audit.** 211 MR volumes pair one-to-one with 211 label volumes from 38 patients. Voxel spacing is about 1.56 mm in all axes. 210 volumes are 256x256x128 and one is 256x256x144 (centre-cropped to 128). Labels take values 0 to 5. In the first label volume, class 5 covers about 0.12% of voxels.
+- **Model build.** Both models build with output shape (128, 128, 64, 6): 5,650,886 parameters (baseline) and 8,267,618 (Improved U-Net).
+- **Smoke test.** A 16-volume, 2-epoch run on one A100 trained at about 1 s per step (batch size 2) after an 87 s first-epoch compile. Peak GPU memory was 3.32 GB. Loss fell from 2.02 to 1.02 and mean foreground Dice rose from 0.11 to 0.21.
+- **Time estimate.** About 70 steps per epoch at roughly 0.1 to 0.15 s per step puts a full run at well under a GPU-hour, even for 100 epochs.
 
-Key risks: (1) 3D volumetric training may exceed available GPU memory on
-Rangpur, requiring patch-based or downsampled subvolumes; (2) severe
-class imbalance (prostate occupies <2% of each slice) may require a
-weighted or Dice-based loss rather than plain cross-entropy — the
-current `combined_loss` (Dice + cross-entropy) is a first attempt at
-this; (3) label class count and slice dimensions are assumed, not yet
-confirmed, against the real data.
+## 4. Risks, budget and fallback
 
-Compute budget: Rangpur interactive GPU sessions for development/smoke
-testing, Slurm batch jobs for full training runs.
+| Risk | Mitigation |
+|---|---|
+| Few patients (38), so a small, noisy test set | Patient-level split; report per-class Dice and state the limitation |
+| Severe class imbalance for small structures | Per-class Dice loss plus cross-entropy |
+| Downsampling removes detail of small structures | Nearest-neighbour label sampling; state that Dice is at reduced resolution |
+| Memory pressure and node crashes seen on the cluster | float16 images, uint8 labels, per-batch one-hot encoding; exclude a crashing node |
+| Long queue waits | Smoke test first, short time limits, dependent prediction jobs |
 
-Next planned experiment: run `train.py` on an actual Rangpur GPU node
-against real HipMRI data, starting with `EARLY_STOP = True` for a fast
-real-data smoke test before committing to a full run.
+**Compute budget.** One A100 on partition `comp3710`: a 20-minute smoke job, then one training job and one prediction job per model.
 
-Fallback: if the 3D Hard-tier model proves infeasible within the project
-timeline, fall back to submitting the Normal-tier 2D Improved U-Net/CAN
-on HipMRI, which remains a complete and defensible submission.
+**Next planned experiment.** Full runs (up to 100 epochs, early stopping) of both models on the patient-level split.
+
+**Fallback.** If the Improved U-Net did not train reliably, report the plain 3D U-Net as the delivered model and describe the Improved U-Net as incomplete.
