@@ -2,7 +2,7 @@
 
 *COMP3710 Pattern Recognition Report, Marcus Wee Lam Seow, s48747240*
 
-**Selected model: 3D Improved U-Net on downsampled HipMRI 3D volumes (Hard difficulty).** A plain 3D U-Net is the baseline, and my earlier 2D U-Net, 2D baseline and 2D Improved U-Net are kept as supporting comparisons (Section 7). The 2D submission is also preserved as the git tag `2d-final`.
+**Selected model: 3D Improved U-Net on downsampled HipMRI 3D volumes (Hard difficulty).** A plain 3D U-Net is used as the baseline for comparison.
 
 ## 1. Project description
 
@@ -17,7 +17,7 @@ Radiotherapy planning needs accurate contours of the prostate and the organs aro
 
 It has 8,267,618 parameters. The baseline is a standard 3D U-Net (Cicek et al., 2016): four levels (16 to 128 filters), a 256-filter bottleneck, max pooling, transposed-convolution upsampling, batch norm and ReLU (5,650,886 parameters). Both models use the same data, split, loss and optimiser, and are evaluated on the same 27 test volumes.
 
-**Loss and optimiser.** Mean per-class soft Dice loss plus categorical cross-entropy, Adam (lr 5e-4, halved on validation-loss plateau), batch size 2, up to 100 epochs, early stopping (patience 20) and best-checkpoint saving on validation foreground Dice. The per-class Dice loss replaces the global Dice used in my 2D work, because the global version is dominated by background (see Section 7).
+**Loss and optimiser.** Mean per-class soft Dice loss plus categorical cross-entropy, Adam (lr 5e-4, halved on validation-loss plateau), batch size 2, up to 100 epochs, early stopping (patience 20) and best-checkpoint saving on validation foreground Dice. The per-class Dice loss is used instead of a global Dice term because a global term is dominated by background voxels, which would otherwise swamp the signal from small structures.
 
 ![Training curves, 3D Improved U-Net](plots/training_curves_improved3d.png)
 ![Training curves, 3D U-Net baseline](plots/training_curves_unet3d.png)
@@ -38,12 +38,12 @@ This project uses data from the **HipMRI Study**, accessed via the University of
 
 ## 3. Feasibility review
 
-[CHECK: replace this with the one-page review you actually presented at the midpoint check-off. The draft below must match what you presented and measured. If you presented the 2D plan, include that and add one sentence saying the project was later extended to 3D.]
+[CHECK: replace this with the one-page review you actually presented at the midpoint check-off. The draft below must match what you presented and measured.]
 
 - **User and acceptance criteria.** User: a clinician reviewing draft contours. Criteria: (1) Dice >= 0.7 on the test set; (2) per-class Dice reported; (3) 3 to 5 failure cases diagnosed; (4) a full training run within a few GPU-hours on one A100.
 - **Model and course concepts.** 3D Improved U-Net on downsampled HipMRI 3D volumes (Hard tier), with a 3D U-Net baseline.
 - **Preliminary evidence.** A data audit (`check_3d.py`, not committed) found 211 MR volumes paired one-to-one with 211 label volumes from 38 patients; shapes were 256x256x128 for 210 volumes and 256x256x144 for one; labels were values 0 to 5. A 16-volume, 2-epoch smoke test confirmed the model trains on GPU (peak memory 3.3 GB).
-- **Risks and fallback.** Small test set, severe class imbalance, cluster node problems. Fallback: the finished 2D submission (tag `2d-final`).
+- **Risks and fallback.** Small test set, severe class imbalance, cluster node problems. Fallback: revert to the plain 3D U-Net baseline alone if the Improved U-Net does not train reliably in time.
 
 ## 4. Data pipeline
 
@@ -53,7 +53,7 @@ Data: `/home/groups/comp3710/HipMRI_Study_open/semantic_MRs` and `semantic_label
 - **Depth fix.** One volume has 144 slices in depth; it is centre-cropped to 128.
 - **Downsampling.** 256x256x128 to 128x128x64. Images use 2x2x2 block averaging; labels use strided (nearest-neighbour) sampling so label values stay valid. Class 5 is about 0.1% of voxels at full resolution, so small structures lose detail in this step.
 - **Intensity normalisation.** Each volume is z-scored.
-- **Memory.** Images are held as float16 and labels as uint8; one-hot encoding happens per batch on the GPU. (An earlier 2D version held float32 one-hot arrays in RAM and crashed one node.)
+- **Memory.** Images are held as float16 and labels as uint8; one-hot encoding happens per batch on the GPU. (An earlier version held float32 one-hot arrays in RAM and crashed one node.)
 - **Augmentation.** Random flip along axis 0 on the training set only. [CHECK: I assumed axis 0 is left-right. Look at the figures in Section 6; if the anatomy looks wrong, say so here.]
 
 ## 5. Dependencies and reproducibility
@@ -75,11 +75,8 @@ The data split and training shuffle use seed 42, but no global TensorFlow seed i
 | `dataset_3d.py` | Pairing, patient-level split, resizing, normalisation, batching |
 | `train_3d.py` | Training, validation, test evaluation, curves, resource profiling |
 | `predict_3d.py` | Per-class Dice per test volume and failure-case figures |
-| `modules.py`, `dataset.py`, `train.py`, `predict.py` | The 2D implementation (Section 7) |
 
-The 3D code lives in `_3d` files alongside the 2D files so the 2D submission stays reproducible.
-
-## 6. Results (3D)
+## 6. Results
 
 All numbers are from one training run per model. Dice is computed per test volume and averaged, at the 128x128x64 working resolution. Every class is present in all 27 test volumes.
 
@@ -137,7 +134,7 @@ The Improved U-Net has 1.46x the parameters of the baseline but is about 2.4x sl
 [CHECK: write the autopsy from the figures. For each failure, say where the prediction disagrees with the ground truth (boundary leakage into neighbouring structures, under-segmentation, a displaced region) and what is visible in the input slice (low contrast, adjacent bright bladder, etc.). Say whether the anatomy looks correct, which also tests the flip assumption in Section 4. Do not describe anything you cannot see.]
 
 Observations supported by the numbers alone:
-- The worst class-5 volumes score 0.70 to 0.78. These are **mild shortfalls**, not the complete misses seen in the 2D slice-wise evaluation (Section 7).
+- The worst class-5 volumes score 0.70 to 0.78. These are mild shortfalls rather than complete misses.
 - J026 contributes the worst volumes for both models (weeks 1 and 6 for the Improved U-Net, week 1 for the baseline), so the weakest results cluster on one patient.
 - Both models fail on overlapping volumes (J026_Week1), which suggests the difficulty comes from the data (small structure, low contrast) more than from the architecture.
 
@@ -148,40 +145,13 @@ Observations supported by the numbers alone:
 - Single run per model, no confidence intervals, no cross-validation.
 - Only the worst three volumes and the best volume per model were inspected.
 
-## 7. Comparison with the 2D models
-
-I first built a 2D pipeline on the pre-split HipMRI 2D slices (`keras_slices_data`, 11,460 / 660 / 540 train / validate / test slices, 3 test cases) and trained three models: a 2D U-Net (7.77M parameters), a reduced 2D baseline (1.94M) and a 2D Improved U-Net (2.77M). Per-class Dice over slices where the class is present:
-
-| Class | 2D U-Net | 2D baseline | 2D Improved U-Net |
-|---|---|---|---|
-| 0 | 0.996 | 0.995 | 0.995 |
-| 1 | 0.983 | 0.978 | 0.981 |
-| 2 | 0.912 | 0.884 | 0.904 |
-| 3 | 0.923 | 0.909 | 0.909 |
-| 4 | 0.764 | 0.647 | 0.745 |
-| 5 | 0.694 | 0.699 | 0.678 |
-
-In 2D, class 5 stayed between 0.68 and 0.70 for all three architectures, and the slice-wise failure analysis found complete misses of tiny class 5 regions (3 to 98 pixels) next to the bladder. In 3D, class 5 reaches 0.82 to 0.84.
-
-**This is not evidence that 3D context fixes the problem.** Three things changed at once:
-1. **The loss.** The 2D models used a global Dice term that background dominates; the 3D models use a per-class Dice term. This was my untested 2D hypothesis, and this result is consistent with it, but I did not run the 2D models with the per-class loss, so the effect of the loss cannot be separated from the effect of 3D.
-2. **The metric unit and resolution.** 2D Dice is per slice (including slices where the structure is a few pixels), 3D Dice is per volume at reduced resolution, which is more forgiving.
-3. **The test set.** 3 cases in 2D vs 6 patients in 3D.
-
-The 2D and 3D tables should therefore not be compared directly. A controlled comparison would train the 2D models with the per-class loss and score both at matching resolution.
-
-2D resource profile for reference (the 2D U-Net figures come from a repeat run of the same architecture): 7.77M / 1.94M / 2.77M parameters; inference 48.4 / 29.9 / 111.5 ms per slice; training 36 / 42 / 50 epochs.
-
-## 8. Engineering recommendation
+## 7. Engineering recommendation
 
 The 3D models meet the Dice >= 0.7 target on every class, so a 3D model is a reasonable basis for an annotation assistant that proposes contours for a clinician to review and edit. I would not use it unsupervised yet:
 1. **Prefer the simpler model.** The plain 3D U-Net matches the Improved U-Net on every class (about +0.01 mean foreground Dice) at about 2.4x faster inference and 0.7x the parameters, so the added complexity is not justified by this evidence.
 2. **Review small structures.** Flag volumes where class 5 is small or has low model confidence for manual review, since the weakest volumes cluster on particular patients.
 3. **Validate at full resolution.** Results here are at half resolution in each axis with strided labels; re-evaluate at full resolution before any clinical claim.
 4. **More patients.** Use cross-validation over patients, or a larger held-out set, to quantify the variation between patients.
-5. **Controlled loss experiment.** Train the 2D models with the per-class Dice loss to separate the effect of the loss from the effect of 3D context.
-
-
 ## Artificial Intelligence Usage Disclosure
 
 <!-- Document: which AI tools were used, what tasks they assisted with,
