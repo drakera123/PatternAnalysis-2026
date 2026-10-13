@@ -1,6 +1,6 @@
 # Feasibility Review: HipMRI 2D Prostate Segmentation
 
-*[Your Name], s4874724 — COMP3710 Pattern Recognition*
+*Marcus Wee Lam Seow, s4874724 — COMP3710 Pattern Recognition*
 
 ## 1. User Need, Scope & Acceptance Criteria
 
