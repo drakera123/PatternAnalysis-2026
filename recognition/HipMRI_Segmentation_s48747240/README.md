@@ -115,7 +115,7 @@ All numbers are from one training run per model. Dice is computed per test volum
 | 5 | 0.817 | 0.837 |
 | **Mean foreground (1 to 5)** | **0.897** | **0.908** |
 
-**Target (Dice >= 0.7):** both models exceed 0.7 on every class, including the weakest (class 5: 0.82 and 0.84), so the target is met whichever label is the prostate. The prostate label was not confirmed against dataset documentation, so results are reported by class number; the target is met on all of them.
+**Target (Dice >= 0.7):** both models exceed 0.7 on every class, including the weakest (class 5: 0.82 and 0.84). The prostate label was not confirmed against dataset documentation, so results are reported by class number; the target is met on all of them.
 
 The Improved U-Net did **not** beat the plain 3D U-Net: its mean foreground Dice is about 0.01 lower. With single runs on 6 test patients I treat this as a tie, not a loss, and I make no claim about which architecture is better.
 
@@ -128,7 +128,7 @@ The Improved U-Net did **not** beat the plain 3D U-Net: its mean foreground Dice
 | Inference per volume | 119.9 ms | 49.6 ms |
 | Epochs run | 76 of 100 (early stopping; best epoch 56) | 100 of 100 |
 | Training step time | about 90 to 135 ms | about 66 to 100 ms |
-| Approx. training time | ~10.3 min (76 epochs) | ~10.5 min (100 epochs) |
+| Approx. training time | ~11.9 min (76 epochs) | ~11.3 min (100 epochs) |
 
 The Improved U-Net has 1.46x the parameters of the baseline but is about 2.4x slower at inference, because instance normalisation and the extra high-resolution decoder convolutions are expensive.
 
@@ -154,8 +154,8 @@ The Improved U-Net has 1.46x the parameters of the baseline but is about 2.4x sl
 ![T014_Week2, Baseline](predictions_baseline3d/vol_00_T014_Week2.png)
 ![J026_Week1, Baseline](predictions_baseline3d/vol_01_J026_Week1.png)
 
-Across the four Improved U-Net failure cases and three baseline failure cases
-inspected, errors fall into two distinct patterns rather than a diffuse
+Across the six embedded failure figures (four Improved U-Net, two baseline), 
+errors fall into two distinct patterns rather than a diffuse
 blur:
 
 1. **Boundary leakage on the paired lateral structures** (visible top and
@@ -180,8 +180,9 @@ Anatomy in all six inspected slices is bilaterally symmetric and
 consistent with correctly oriented axial pelvic imaging, so the
 left-right flip augmentation (Section 4) does not appear to have
 introduced any mirrored or misoriented training cases.
+
 Observations supported by the numbers alone:
-- The worst class-5 volumes score 0.70 to 0.78. These are mild shortfalls rather than complete misses.
+- The three worst class-5 volumes per model score 0.70 to 0.78. These are mild shortfalls rather than complete misses.
 - J026 contributes the worst volumes for both models (weeks 1 and 6 for the Improved U-Net, week 1 for the baseline), so the weakest results cluster on one patient.
 - Both models fail on overlapping volumes (J026_Week1), which suggests the difficulty comes from the data (small structure, low contrast) more than from the architecture.
 
