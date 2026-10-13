@@ -105,7 +105,7 @@ The Improved U-Net did **not** beat the plain 3D U-Net: its mean foreground Dice
 | Inference per volume | 119.9 ms | 49.6 ms |
 | Epochs run | 76 of 100 (early stopping; best epoch 56) | 100 of 100 |
 | Training step time | about 90 to 135 ms | about 66 to 100 ms |
-| Approx. training time | [CHECK: from `train_651650.out`] | [CHECK: from `train_651651.out`] |
+| Approx. training time | ~10.3 min (76 epochs) | ~10.5 min (100 epochs) |
 
 The Improved U-Net has 1.46x the parameters of the baseline but is about 2.4x slower at inference, because instance normalisation and the extra high-resolution decoder convolutions are expensive.
 
