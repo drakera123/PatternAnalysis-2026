@@ -170,11 +170,7 @@ blur:
    unlike the sharp edges around bone, so the model has little signal to
    place the boundary precisely.
 
-T014_Week1 and T014_Week2 additionally show a thin, uniform vertical red
-stripe at the right edge of the frame, unrelated to any anatomical
-structure. Its straightness and position suggest a resizing/cropping
-artifact at the downsampled volume's edge rather than a model failure, and
-it is worth a follow-up check of the crop/resize step in `dataset_3d.py`.
+T014_Week1 and T014_Week2 additionally show a thin vertical line of disagreement on the right side of the difference panel. I checked the outermost voxel layers: ground-truth labels, image and prediction are all zero/background there, and disagreement along the left-right axis is confined to columns 24 to 98 (Week1) and 27 to 96 (Week2), with the right-hand peak at columns 98 and 96. It is therefore not a crop, resize or padding artefact. It lies at an internal boundary, most likely a one- or two-voxel offset in the placement of a structure’s edge, but I did not trace which structure.
 
 The best-performing volume (V027_Week7, Dice 0.91) shows the same two
 failure patterns at much smaller scale, suggesting these are a matter of
