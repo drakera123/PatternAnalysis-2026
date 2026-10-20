@@ -99,11 +99,11 @@ The data split and training shuffle use seed 42, but no global TensorFlow seed i
 | `train_3d.py` | Training, validation, test evaluation, curves, resource profiling |
 | `predict_3d.py` | Per-class Dice per test volume and failure-case figures |
 
-## 6. Results
+## 5. Results
 
 All numbers are from one training run per model. Dice is computed per test volume and averaged, at the 128x128x64 working resolution. Every class is present in all 27 test volumes.
 
-### 6.1 Per-class Dice (27 test volumes, 6 patients)
+### 5.1 Per-class Dice (27 test volumes, 6 patients)
 
 | Class | 3D Improved U-Net | 3D U-Net baseline |
 |---|---|---|
@@ -119,7 +119,7 @@ All numbers are from one training run per model. Dice is computed per test volum
 
 The Improved U-Net did **not** beat the plain 3D U-Net: its mean foreground Dice is about 0.01 lower. With single runs on 6 test patients I treat this as a tie, not a loss, and I make no claim about which architecture is better.
 
-### 6.2 Resource profile
+### 5.2 Resource profile
 
 | | 3D Improved U-Net | 3D U-Net baseline |
 |---|---|---|
@@ -132,7 +132,7 @@ The Improved U-Net did **not** beat the plain 3D U-Net: its mean foreground Dice
 
 The Improved U-Net has 1.46x the parameters of the baseline but is about 2.4x slower at inference, because instance normalisation and the extra high-resolution decoder convolutions are expensive.
 
-### 6.3 Failure cases
+### 5.3 Failure cases
 
 `predict_3d.py` scores every test volume, finds the weakest class (class 5 for both models), and plots axial slices through the ground-truth region for the three lowest-scoring volumes and the best volume. Figures show input, ground truth, prediction and a difference overlay. Colours are fixed across figures.
 
@@ -186,12 +186,32 @@ Observations supported by the numbers alone:
 - J026 contributes the worst volumes for both models (weeks 1 and 6 for the Improved U-Net, week 1 for the baseline), so the weakest results cluster on one patient.
 - Both models fail on overlapping volumes (J026_Week1), which suggests the difficulty comes from the data (small structure, low contrast) more than from the architecture.
 
-### 6.4 Limitations
+### 5.4 Limitations
 
 - The test set is 27 volumes from 6 patients (several have 8 weekly scans of the same anatomy), so the effective sample is closer to 6 than 27. Differences of about 0.01 are within what I would expect from run-to-run variation.
 - Dice is measured at 128x128x64 against strided-downsampled labels, so it is probably optimistic for small structures and is not full-resolution accuracy.
 - Single run per model, no confidence intervals, no cross-validation.
 - Only the worst three volumes and the best volume per model were inspected.
+
+## 6. Dependencies and reproducibility
+
+Python 3.11 (conda env `tf`), tensorflow 2.21.0, nibabel 5.4.2, numpy 2.4.6, matplotlib 3.11.2, tqdm 4.70.1. Run on one NVIDIA A100 40 GB on Rangpur, partition `comp3710`, with no `--mem` request (the nodes reject one).
+
+```bash
+sbatch train_3d_job.sh            # 3D Improved U-Net -> checkpoints/improved3d_best.keras
+sbatch train_3d_baseline_job.sh   # 3D U-Net baseline -> checkpoints/unet3d_best.keras
+sbatch predict_3d_job.sh          # figures in predictions_improved3d/
+sbatch predict_3d_baseline_job.sh # figures in predictions_baseline3d/
+```
+
+The data split and training shuffle use seed 42, but no global TensorFlow seed is set and GPU kernels are nondeterministic, so reruns give slightly different numbers. Checkpoints are not committed.
+
+| File | Purpose |
+|---|---|
+| `modules_3d.py` | 3D U-Net baseline, 3D Improved U-Net, per-class Dice loss and metric |
+| `dataset_3d.py` | Pairing, patient-level split, resizing, normalisation, batching |
+| `train_3d.py` | Training, validation, test evaluation, curves, resource profiling |
+| `predict_3d.py` | Per-class Dice per test volume and failure-case figures |
 
 ## 7. Engineering recommendation
 
