@@ -79,25 +79,6 @@ Data: `/home/groups/comp3710/HipMRI_Study_open/semantic_MRs` and `semantic_label
 - **Intensity normalisation.** Each volume is z-scored.
 - **Memory.** Images are held as float16 and labels as uint8; one-hot encoding happens per batch in the input pipeline. (An earlier version held float32 one-hot arrays in RAM and crashed one node.)
 - **Augmentation.** Random flip along axis 0 on the training set only. I assumed axis 0 is the left-right axis. In the prediction slices I inspected, the anatomy appears bilaterally symmetric and consistently oriented, so I saw no sign that the flip created mirrored or misoriented training cases. I did not verify the axis from the NIfTI affine, so this is a visual check only.
-## 5. Dependencies and reproducibility
-
-Python 3.11 (conda env `tf`), tensorflow 2.21.0, nibabel 5.4.2, numpy 2.4.6, matplotlib 3.11.2, tqdm 4.70.1. Run on one NVIDIA A100 40 GB on Rangpur, partition `comp3710`, with no `--mem` request (the nodes reject one).
-
-```bash
-sbatch train_3d_job.sh            # 3D Improved U-Net -> checkpoints/improved3d_best.keras
-sbatch train_3d_baseline_job.sh   # 3D U-Net baseline -> checkpoints/unet3d_best.keras
-sbatch predict_3d_job.sh          # figures in predictions_improved3d/
-sbatch predict_3d_baseline_job.sh # figures in predictions_baseline3d/
-```
-
-The data split and training shuffle use seed 42, but no global TensorFlow seed is set and GPU kernels are nondeterministic, so reruns give slightly different numbers. Checkpoints are not committed.
-
-| File | Purpose |
-|---|---|
-| `modules_3d.py` | 3D U-Net baseline, 3D Improved U-Net, per-class Dice loss and metric |
-| `dataset_3d.py` | Pairing, patient-level split, resizing, normalisation, batching |
-| `train_3d.py` | Training, validation, test evaluation, curves, resource profiling |
-| `predict_3d.py` | Per-class Dice per test volume and failure-case figures |
 
 ## 5. Results
 
