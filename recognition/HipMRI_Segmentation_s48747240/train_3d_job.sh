@@ -3,8 +3,8 @@
 #SBATCH --partition=comp3710
 #SBATCH --account=comp3710
 #SBATCH --gres=gpu:1
-#SBATCH --time=02:00:00
 #SBATCH --exclude=a100-2
+#SBATCH --time=02:00:00
 #SBATCH --output=train_%j.out
 #SBATCH --error=train_%j.err
 
@@ -15,6 +15,5 @@ nvidia-smi
 source $HOME/miniconda3/bin/activate
 conda activate tf
 
-# Run training
 cd $HOME/PatternAnalysis-2026/recognition/HipMRI_Segmentation_s48747240
-python -u train_3d.py improved3d
+python -u train.py improved3d
