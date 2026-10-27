@@ -22,7 +22,7 @@ INPUT_SHAPE = (128, 128, 64, 1)
 BATCH_SIZE = 2
 EPOCHS = 2 if SMOKE else 100
 LEARNING_RATE = 5e-4
-CHECKPOINT_DIR, PLOTS_DIR = "checkpoints", "plots"
+CHECKPOINT_DIR, PLOTS_DIR = ("checkpoints_smoke", "plots_smoke") if SMOKE else ("checkpoints", "plots")
  
  
 def main():
