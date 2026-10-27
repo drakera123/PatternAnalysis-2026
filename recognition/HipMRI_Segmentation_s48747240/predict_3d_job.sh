@@ -15,6 +15,5 @@ nvidia-smi
 source $HOME/miniconda3/bin/activate
 conda activate tf
 
-# Run inference on the trained model
 cd $HOME/PatternAnalysis-2026/recognition/HipMRI_Segmentation_s48747240
-python -u predict_3d.py improved3d
+python -u predict.py improved3d
